@@ -15,6 +15,7 @@ use octseq::builder::OctetsBuilder;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "bincode", derive(bincode::Decode, bincode::Encode))]
 pub struct Asn(u32);
 
 impl Asn {

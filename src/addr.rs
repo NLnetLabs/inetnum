@@ -6,6 +6,8 @@ use std::net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+#[cfg(feature = "bincode")]
+use bincode::{Encode, Decode};
 
 //------------ Bits ----------------------------------------------------------
 
@@ -23,6 +25,7 @@ use std::str::FromStr;
 /// of this type. This information needs to be carried separately.
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "bincode", derive(bincode::Decode, bincode::Encode))]
 struct Bits(u128);
 
 impl Bits {
@@ -160,6 +163,7 @@ impl fmt::Debug for Bits {
 /// is a IPv6 prefix with the length encoded by flipping all the bits. The
 /// value of 64 stands in for an IPv6 prefix with length 128.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "bincode", derive(Decode, Encode))]
 struct FamilyAndLen(u8);
 
 impl FamilyAndLen {
@@ -236,6 +240,7 @@ impl<'a> arbitrary::Arbitrary<'a> for FamilyAndLen {
 /// more-specific before any less-specific is more efficient or preventing
 /// unwanted intermediate stage when evaluating prefixes in order.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "bincode", derive(Decode, Encode))]
 pub struct Prefix {
     /// The address family and prefix length all in one.
     family_and_len: FamilyAndLen,
