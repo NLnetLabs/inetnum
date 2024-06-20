@@ -6,3 +6,4 @@ jobs:
     uses: NLnetLabs/.github/.github/workflows/rust-ci.yml@main
     with:
       rust_msrv: 1.71
+      test_minimal_versions: true
