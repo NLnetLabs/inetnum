@@ -3,6 +3,6 @@ on: [push, pull_request]
 jobs:
   test:
     name: build and test
-    uses: NLnetLabs/.github/.github/workflows/rust-ci.yml
+    uses: NLnetLabs/.github/.github/workflows/rust-ci.yml@main
     with:
       rust_msrv: 1.71
