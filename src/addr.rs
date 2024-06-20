@@ -249,9 +249,6 @@ impl Prefix {
     ///
     /// The function returns an error if `len` is too large for the address
     /// family of `addr`.
-    ///
-    /// Use `saturating_new` if you want the prefix length to be capped
-    /// instead.
     pub fn new(addr: IpAddr, len: u8) -> Result<Self, PrefixError> {
         match addr {
             IpAddr::V4(addr) => Self::new_v4(addr, len),
@@ -262,9 +259,6 @@ impl Prefix {
     /// Creates a new prefix from an IPv4 address and a prefix length.
     ///
     /// The function returns an error if `len` is greater than 32.
-    ///
-    /// Use `saturating_new_v4` if you want the prefix length to be capped
-    /// instead.
     pub fn new_v4(addr: Ipv4Addr, len: u8) -> Result<Self, PrefixError> {
         let family_and_len = FamilyAndLen::new_v4(len)?;
 
@@ -280,9 +274,6 @@ impl Prefix {
     /// Creates a new prefix from an IPv6 adddress and a prefix length.
     ///
     /// The function returns an error if `len` is greater than 128.
-    ///
-    /// Use `saturating_new_v6` if you want the prefix length to be capped
-    /// instead.
     pub fn new_v6(addr: Ipv6Addr, len: u8) -> Result<Self, PrefixError> {
         let family_and_len = FamilyAndLen::new_v6(len)?;
 
