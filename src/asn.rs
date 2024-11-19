@@ -6,9 +6,6 @@ use std::convert::TryInto;
 use std::str::FromStr;
 use std::iter::Peekable;
 
-#[cfg(feature = "octseq")]
-use octseq::builder::OctetsBuilder;
-
 //------------ Asn -----------------------------------------------------------
 
 /// An AS number (ASN).
@@ -45,13 +42,6 @@ impl Asn {
     /// Converts an AS number into a network-order byte array.
     pub fn to_raw(self) -> [u8; 4] {
         self.0.to_be_bytes()
-    }
-
-    #[cfg(feature = "octseq")]
-    pub fn compose<Target: OctetsBuilder>(
-        self, target: &mut Target
-    ) -> Result<(), Target::AppendError> {
-        target.append_slice(&self.to_raw())
     }
 
     // XXX or do we want this?
