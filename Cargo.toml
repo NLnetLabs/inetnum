@@ -1,6 +1,6 @@
 [package]
 name = "inetnum"
-version = "0.1.1"
+version = "0.1.2-dev"
 authors = ["NLnet Labs <routing-team@nlnetlabs.nl>"]
 categories = ["network-programming"]
 description = "Types for IP address prefixes and ASNs."
