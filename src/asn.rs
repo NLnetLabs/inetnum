@@ -6,20 +6,18 @@ use std::convert::TryInto;
 use std::str::FromStr;
 use std::iter::Peekable;
 
-#[cfg(feature = "octseq")]
-use octseq::builder::OctetsBuilder;
-
 //------------ Asn -----------------------------------------------------------
 
 /// An AS number (ASN).
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[repr(transparent)]
 pub struct Asn(u32);
 
 impl Asn {
-    pub const MIN: Asn = Asn(std::u32::MIN);
-    pub const MAX: Asn = Asn(std::u32::MAX);
+    pub const MIN: Asn = Asn(u32::MIN);
+    pub const MAX: Asn = Asn(u32::MAX);
 
     /// Creates an AS number from a `u32`.
     pub fn from_u32(value: u32) -> Self {
@@ -44,13 +42,6 @@ impl Asn {
     /// Converts an AS number into a network-order byte array.
     pub fn to_raw(self) -> [u8; 4] {
         self.0.to_be_bytes()
-    }
-
-    #[cfg(feature = "octseq")]
-    pub fn compose<Target: OctetsBuilder>(
-        self, target: &mut Target
-    ) -> Result<(), Target::AppendError> {
-        target.append_slice(&self.to_raw())
     }
 
     // XXX or do we want this?
