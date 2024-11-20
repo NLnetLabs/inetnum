@@ -1,6 +1,6 @@
 # inetnum - Internet Number Resources
 
-This create contains the two Internet Number Resource: Prefix and ASNs.
+This create contains the two Internet Number Resources: Prefix and ASNs.
 
 For use in inter-domain routing related applications.
 
