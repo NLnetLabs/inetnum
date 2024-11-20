@@ -1,15 +1,18 @@
 # Changelog
 
-## Unreleased next version
+## 0.1.1
 
-Breaking changes
+Released 2024-11-20
 
 New
 
+- Add repr(transparant) to Asn
+- Add NLnet Labs Rust CI
+- Update docs 
+
 Bug fixes
 
-Other changes
-
+- Add feature `octseq`, and compose fn
 
 ## 0.1.0
 
