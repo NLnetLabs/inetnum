@@ -44,6 +44,14 @@ impl Asn {
         self.0.to_be_bytes()
     }
 
+    #[cfg(feature = "octseq")]
+    pub fn compose<Target: octseq::OctetsBuilder>(
+        self,
+        target: &mut Target,
+    ) -> Result<(), Target::AppendError> {
+        target.append_slice(&self.to_raw())
+    }
+
     // XXX or do we want this?
     // possibly returning LargeAsnError in addition to AppendError?
     //pub fn compose_16<Target: OctetsBuilder>(
