@@ -1,11 +1,10 @@
 //! IP address resources.
 
-use std::{error, fmt};
 use std::cmp::Ordering;
 use std::net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr};
 use std::num::ParseIntError;
 use std::str::FromStr;
-
+use std::{error, fmt};
 
 //------------ Bits ----------------------------------------------------------
 
@@ -67,8 +66,7 @@ impl Bits {
     fn clear_host(self, len: u8) -> Self {
         if len == 0 {
             Bits(0)
-        }
-        else {
+        } else {
             Bits(self.0 & (u128::MAX << (128u8.saturating_sub(len))))
         }
     }
@@ -80,13 +78,11 @@ impl Bits {
     fn into_max(self, prefix_len: u8) -> Self {
         if prefix_len >= 128 {
             self
-        }
-        else {
+        } else {
             Self(self.0 | (u128::MAX >> prefix_len as usize))
         }
     }
 }
-
 
 //--- From
 
@@ -112,7 +108,7 @@ impl From<IpAddr> for Bits {
     fn from(addr: IpAddr) -> Self {
         match addr {
             IpAddr::V4(addr) => Self::from(addr),
-            IpAddr::V6(addr) => Self::from(addr)
+            IpAddr::V6(addr) => Self::from(addr),
         }
     }
 }
@@ -135,17 +131,15 @@ impl From<Bits> for Ipv6Addr {
     }
 }
 
-
 //--- Debug
 
 impl fmt::Debug for Bits {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("Bits")
-        .field(&format_args!("{}", self.into_v6()))
-        .finish()
+            .field(&format_args!("{}", self.into_v6()))
+            .finish()
     }
 }
-
 
 //------------ FamilyAndLen --------------------------------------------------
 
@@ -167,8 +161,7 @@ impl FamilyAndLen {
     pub fn new_v4(len: u8) -> Result<Self, PrefixError> {
         if len > 32 {
             Err(PrefixError::LenOverflow)
-        }
-        else {
+        } else {
             Ok(Self(len))
         }
     }
@@ -178,7 +171,7 @@ impl FamilyAndLen {
         match len.cmp(&128) {
             Ordering::Greater => Err(PrefixError::LenOverflow),
             Ordering::Equal => Ok(Self(0x40)),
-            Ordering::Less => Ok(Self(len ^ 0xFF))
+            Ordering::Less => Ok(Self(len ^ 0xFF)),
         }
     }
 
@@ -198,7 +191,7 @@ impl FamilyAndLen {
         match self.0 & 0xc0 {
             0x00 => self.0,
             0x40 => 128,
-            _ => self.0 ^ 0xFF
+            _ => self.0 ^ 0xFF,
         }
     }
 }
@@ -206,20 +199,18 @@ impl FamilyAndLen {
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for FamilyAndLen {
     fn arbitrary(
-        u: &mut arbitrary::Unstructured<'a>
+        u: &mut arbitrary::Unstructured<'a>,
     ) -> arbitrary::Result<Self> {
         if bool::arbitrary(u)? {
             Ok(Self(u8::arbitrary(u)? % 33))
-        }
-        else {
+        } else {
             match u8::arbitrary(u)? % 129 {
                 128 => Ok(Self(0x40)),
-                val => Ok(Self(val ^ 0xFF))
+                val => Ok(Self(val ^ 0xFF)),
             }
         }
     }
 }
-
 
 //------------ Prefix --------------------------------------------------------
 
@@ -265,10 +256,13 @@ impl Prefix {
         // Check that host bits are zero.
         let bits = Bits::from_v4(addr);
         if !bits.is_host_zero(len) {
-            return Err(PrefixError::NonZeroHost)
+            return Err(PrefixError::NonZeroHost);
         }
 
-        Ok(Prefix { family_and_len, bits })
+        Ok(Prefix {
+            family_and_len,
+            bits,
+        })
     }
 
     /// Creates a new prefix from an IPv6 adddress and a prefix length.
@@ -280,10 +274,13 @@ impl Prefix {
         // Check that host bits are zero.
         let bits = Bits::from_v6(addr);
         if !bits.is_host_zero(len) {
-            return Err(PrefixError::NonZeroHost)
+            return Err(PrefixError::NonZeroHost);
         }
 
-        Ok(Prefix { family_and_len, bits })
+        Ok(Prefix {
+            family_and_len,
+            bits,
+        })
     }
 
     /// Creates a new prefix zeroing out host bits.
@@ -296,23 +293,25 @@ impl Prefix {
 
     /// Creates a new prefix zeroing out host bits.
     pub fn new_v4_relaxed(
-        addr: Ipv4Addr, len: u8
+        addr: Ipv4Addr,
+        len: u8,
     ) -> Result<Self, PrefixError> {
         let family_and_len = FamilyAndLen::new_v4(len)?;
         Ok(Prefix {
             bits: Bits::from_v4(addr).clear_host(len),
-            family_and_len
+            family_and_len,
         })
     }
 
     /// Creates a new prefix zeroing out host bits.
     pub fn new_v6_relaxed(
-        addr: Ipv6Addr, len: u8
+        addr: Ipv6Addr,
+        len: u8,
     ) -> Result<Self, PrefixError> {
         let family_and_len = FamilyAndLen::new_v6(len)?;
         Ok(Prefix {
             bits: Bits::from_v6(addr).clear_host(len),
-            family_and_len
+            family_and_len,
         })
     }
 
@@ -330,8 +329,7 @@ impl Prefix {
     pub fn addr(self) -> IpAddr {
         if self.is_v4() {
             self.bits.into_v4().into()
-        }
-        else {
+        } else {
             self.bits.into_v6().into()
         }
     }
@@ -359,8 +357,7 @@ impl Prefix {
         let bits = self.bits.into_max(self.len());
         if self.is_v4() {
             bits.into_v4().into()
-        }
-        else {
+        } else {
             bits.into_v6().into()
         }
     }
@@ -369,12 +366,12 @@ impl Prefix {
     pub fn covers(self, other: Self) -> bool {
         // Differing families? Not covering.
         if self.is_v4() != other.is_v4() {
-            return false
+            return false;
         }
 
         // If self is more specific than other, it can’t cover it.
         if self.len() > other.len() {
-            return false
+            return false;
         }
 
         // If we have two host prefixes, they need to be identical.
@@ -382,16 +379,15 @@ impl Prefix {
         // work at least in the v6 case.)
         if self.is_v4() {
             if self.len() == 32 && other.len() == 32 {
-                return self == other
+                return self == other;
             }
-        }
-        else if self.len() == 128 && other.len() == 128 {
-            return self == other
+        } else if self.len() == 128 && other.len() == 128 {
+            return self == other;
         }
 
         // other now needs to start with the same bits as self.
         self.bits.into_int()
-            ==  other.bits.into_int() & !(u128::MAX >> self.len())
+            == other.bits.into_int() & !(u128::MAX >> self.len())
     }
 
     /// Returns `true` if the prefix contains `addr`.
@@ -403,7 +399,7 @@ impl Prefix {
 //--- PartialOrd and Ord
 
 /// See [Ordering](Prefix#ordering) in the type documentation.
-impl PartialOrd for Prefix { 
+impl PartialOrd for Prefix {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -412,21 +408,19 @@ impl PartialOrd for Prefix {
 /// See [Ordering](Prefix#ordering) in the type documentation.
 impl Ord for Prefix {
     fn cmp(&self, other: &Self) -> Ordering {
-
         match (self.is_v4(), other.is_v4()) {
-            (true, false) => Ordering::Less, // v4 v6
+            (true, false) => Ordering::Less,    // v4 v6
             (false, true) => Ordering::Greater, //v6 v4
             // v4 v4 or v6 v6
             (_, _) => {
                 if self.len() == other.len() {
                     self.bits.0.cmp(&other.bits.0)
-                }
-                else {
+                } else {
                     let minlen = std::cmp::min(self.len(), other.len());
                     let mask = !(u128::MAX >> minlen);
                     if self.bits.0 & mask == other.bits.0 & mask {
                         // more-specific before less-specific
-                        other.len().cmp(&self.len()) 
+                        other.len().cmp(&self.len())
                     } else {
                         self.bits.0.cmp(&other.bits.0)
                     }
@@ -436,13 +430,12 @@ impl Ord for Prefix {
     }
 }
 
-
 //--- Deserialize and Serialize
 
 #[cfg(feature = "serde")]
 impl<'de> serde::Deserialize<'de> for Prefix {
     fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D
+        deserializer: D,
     ) -> Result<Self, D::Error> {
         struct Visitor;
 
@@ -450,13 +443,15 @@ impl<'de> serde::Deserialize<'de> for Prefix {
             type Value = Prefix;
 
             fn expecting(
-                &self, formatter: &mut fmt::Formatter
+                &self,
+                formatter: &mut fmt::Formatter,
             ) -> fmt::Result {
                 write!(formatter, "a string with an IPv4 or IPv6 prefix")
             }
 
             fn visit_str<E: serde::de::Error>(
-                self, v: &str
+                self,
+                v: &str,
             ) -> Result<Self::Value, E> {
                 Prefix::from_str(v).map_err(E::custom)
             }
@@ -469,12 +464,12 @@ impl<'de> serde::Deserialize<'de> for Prefix {
 #[cfg(feature = "serde")]
 impl serde::Serialize for Prefix {
     fn serialize<S: serde::Serializer>(
-        &self, serializer: S
+        &self,
+        serializer: S,
     ) -> Result<S::Ok, S::Error> {
         serializer.collect_str(self)
     }
 }
-
 
 //--- FromStr and Display
 
@@ -483,15 +478,13 @@ impl FromStr for Prefix {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
-            return Err(ParsePrefixError::Empty)
+            return Err(ParsePrefixError::Empty);
         }
         let slash = s.find('/').ok_or(ParsePrefixError::MissingLen)?;
-        let addr = IpAddr::from_str(&s[..slash]).map_err(
-            ParsePrefixError::InvalidAddr
-        )?;
-        let len = u8::from_str(&s[slash + 1..]).map_err(
-            ParsePrefixError::InvalidLen
-        )?;
+        let addr = IpAddr::from_str(&s[..slash])
+            .map_err(ParsePrefixError::InvalidAddr)?;
+        let len = u8::from_str(&s[slash + 1..])
+            .map_err(ParsePrefixError::InvalidLen)?;
         Prefix::new(addr, len).map_err(ParsePrefixError::InvalidPrefix)
     }
 }
@@ -502,13 +495,12 @@ impl fmt::Display for Prefix {
     }
 }
 
-
 //--- Arbitrary
 
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for Prefix {
     fn arbitrary(
-        u: &mut arbitrary::Unstructured<'a>
+        u: &mut arbitrary::Unstructured<'a>,
     ) -> arbitrary::Result<Self> {
         let fal = FamilyAndLen::arbitrary(u)?;
         let mut bits = Bits::arbitrary(u)?;
@@ -517,12 +509,10 @@ impl<'a> arbitrary::Arbitrary<'a> for Prefix {
         }
         Ok(Self {
             family_and_len: fal,
-            bits: bits.clear_host(fal.len())
+            bits: bits.clear_host(fal.len()),
         })
     }
 }
-
-
 
 //------------ MaxLenPrefix --------------------------------------------------
 
@@ -562,17 +552,15 @@ impl MaxLenPrefix {
     /// `prefix.len()` or larger than the maximum prefix length of the
     /// prefix’s address family.
     pub fn new(
-        prefix: Prefix, max_len: Option<u8>
+        prefix: Prefix,
+        max_len: Option<u8>,
     ) -> Result<Self, MaxLenError> {
         if let Some(max_len) = max_len {
-            if
-                (prefix.is_v4() && max_len > 32)
-                || max_len > 128
-            {
-                return Err(MaxLenError::Overflow)
+            if (prefix.is_v4() && max_len > 32) || max_len > 128 {
+                return Err(MaxLenError::Overflow);
             }
             if prefix.len() > max_len {
-                return Err(MaxLenError::Underflow)
+                return Err(MaxLenError::Underflow);
             }
         }
         Ok(MaxLenPrefix { prefix, max_len })
@@ -583,14 +571,11 @@ impl MaxLenPrefix {
         let max_len = max_len.map(|max_len| {
             if prefix.len() > max_len {
                 prefix.len()
-            }
-            else if prefix.is_v4() && max_len > 32 {
+            } else if prefix.is_v4() && max_len > 32 {
                 32
-            }
-            else if max_len > 128 {
+            } else if max_len > 128 {
                 128
-            }
-            else {
+            } else {
                 max_len
             }
         });
@@ -624,7 +609,7 @@ impl MaxLenPrefix {
 }
 
 /// See [Ordering](MaxLenPrefix#ordering) in the type documentation.
-impl PartialOrd for MaxLenPrefix { 
+impl PartialOrd for MaxLenPrefix {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -636,14 +621,12 @@ impl Ord for MaxLenPrefix {
         match self.prefix.cmp(&other.prefix) {
             Ordering::Less => Ordering::Less,
             Ordering::Greater => Ordering::Greater,
-            Ordering::Equal => {
-                match (self.max_len, other.max_len) {
-                    (None, None) => Ordering::Equal,
-                    (Some(_), None) => Ordering::Less,
-                    (None, Some(_)) => Ordering::Greater,
-                    (Some(n), Some(m)) => m.cmp(&n)
-                }
-            }
+            Ordering::Equal => match (self.max_len, other.max_len) {
+                (None, None) => Ordering::Equal,
+                (Some(_), None) => Ordering::Less,
+                (None, Some(_)) => Ordering::Greater,
+                (Some(n), Some(m)) => m.cmp(&n),
+            },
         }
     }
 }
@@ -652,10 +635,12 @@ impl Ord for MaxLenPrefix {
 
 impl From<Prefix> for MaxLenPrefix {
     fn from(prefix: Prefix) -> Self {
-        MaxLenPrefix { prefix, max_len: None }
+        MaxLenPrefix {
+            prefix,
+            max_len: None,
+        }
     }
 }
-
 
 //--- FromStr and Display
 
@@ -663,27 +648,23 @@ impl FromStr for MaxLenPrefix {
     type Err = ParseMaxLenPrefixError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (prefix, max_len) = match s.find('-') {
-            Some(dash) => {
-                (
-                    Prefix::from_str(&s[..dash]).map_err(
-                        ParseMaxLenPrefixError::InvalidPrefix
-                    )?,
+        let (prefix, max_len) =
+            match s.find('-') {
+                Some(dash) => (
+                    Prefix::from_str(&s[..dash])
+                        .map_err(ParseMaxLenPrefixError::InvalidPrefix)?,
                     Some(u8::from_str(&s[dash + 1..]).map_err(
-                        ParseMaxLenPrefixError::InvalidMaxLenFormat
-                    )?)
-                )
-            }
-            None => {
-                let prefix = Prefix::from_str(s).map_err(
-                    ParseMaxLenPrefixError::InvalidPrefix
-                )?;
-                (prefix, None)
-            }
-        };
-        Self::new(prefix, max_len).map_err(
-            ParseMaxLenPrefixError::InvalidMaxLenValue
-        )
+                        ParseMaxLenPrefixError::InvalidMaxLenFormat,
+                    )?),
+                ),
+                None => {
+                    let prefix = Prefix::from_str(s)
+                        .map_err(ParseMaxLenPrefixError::InvalidPrefix)?;
+                    (prefix, None)
+                }
+            };
+        Self::new(prefix, max_len)
+            .map_err(ParseMaxLenPrefixError::InvalidMaxLenValue)
     }
 }
 
@@ -696,7 +677,6 @@ impl fmt::Display for MaxLenPrefix {
         Ok(())
     }
 }
-
 
 //============ Errors ========================================================
 
@@ -735,8 +715,7 @@ impl fmt::Display for PrefixError {
     }
 }
 
-impl error::Error for PrefixError { }
-
+impl error::Error for PrefixError {}
 
 //------------ ParsePrefixError ----------------------------------------------
 
@@ -778,8 +757,7 @@ impl fmt::Display for ParsePrefixError {
     }
 }
 
-impl error::Error for ParsePrefixError { }
-
+impl error::Error for ParsePrefixError {}
 
 //------------ MaxLenError ---------------------------------------------------
 
@@ -813,9 +791,7 @@ impl From<MaxLenError> for &'static str {
 impl fmt::Display for MaxLenError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MaxLenError::Overflow => {
-                f.write_str("max-length too large")
-            }
+            MaxLenError::Overflow => f.write_str("max-length too large"),
             MaxLenError::Underflow => {
                 f.write_str("max-length smaller than prefix length")
             }
@@ -823,8 +799,7 @@ impl fmt::Display for MaxLenError {
     }
 }
 
-impl error::Error for MaxLenError { }
-
+impl error::Error for MaxLenError {}
 
 //------------ ParseMaxLenPrefixError ----------------------------------------
 
@@ -839,27 +814,22 @@ pub enum ParseMaxLenPrefixError {
     InvalidMaxLenFormat(ParseIntError),
 
     /// The max-len value is invalid.
-    InvalidMaxLenValue(MaxLenError)
+    InvalidMaxLenValue(MaxLenError),
 }
 
 impl fmt::Display for ParseMaxLenPrefixError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ParseMaxLenPrefixError::InvalidPrefix(err) => {
-                err.fmt(f)
-            }
+            ParseMaxLenPrefixError::InvalidPrefix(err) => err.fmt(f),
             ParseMaxLenPrefixError::InvalidMaxLenFormat(err) => {
                 write!(f, "invalid max length: {}", err)
             }
-            ParseMaxLenPrefixError::InvalidMaxLenValue(err) => {
-                err.fmt(f)
-            }
+            ParseMaxLenPrefixError::InvalidMaxLenValue(err) => err.fmt(f),
         }
     }
 }
 
-impl error::Error for ParseMaxLenPrefixError { }
-
+impl error::Error for ParseMaxLenPrefixError {}
 
 //============ Tests =========================================================
 
@@ -909,8 +879,8 @@ mod test {
 
         assert_eq!(
             Ipv4Addr::from(Bits::from(
-                    (192u128 << 24 | (168 << 16) | (10 << 8) | 20) << 96
-                    )),
+                (192u128 << 24 | (168 << 16) | (10 << 8) | 20) << 96
+            )),
             Ipv4Addr::new(192, 168, 10, 20),
         );
 
@@ -925,7 +895,9 @@ mod test {
             (IpAddr::from_str("127.0.0.0").unwrap(), 12)
         );
         assert_eq!(
-            Prefix::from_str("2001:db8:10:20::/64").unwrap().addr_and_len(),
+            Prefix::from_str("2001:db8:10:20::/64")
+                .unwrap()
+                .addr_and_len(),
             (IpAddr::from_str("2001:db8:10:20::").unwrap(), 64)
         );
         assert_eq!(
@@ -945,24 +917,15 @@ mod test {
             Prefix::from_str("2001:db8::"),
             Err(ParsePrefixError::MissingLen)
         );
-        assert!(
-            matches!(
-                Prefix::from_str("127.0.0.0/"),
-                Err(ParsePrefixError::InvalidLen(_))
-            )
-        );
-        assert!(
-            matches!(
-                Prefix::from_str("2001:db8::/"),
-                Err(ParsePrefixError::InvalidLen(_))
-            )
-        );
-        assert!(
-            matches!(
-                Prefix::from_str(""),
-                Err(ParsePrefixError::Empty)
-            )
-        );
+        assert!(matches!(
+            Prefix::from_str("127.0.0.0/"),
+            Err(ParsePrefixError::InvalidLen(_))
+        ));
+        assert!(matches!(
+            Prefix::from_str("2001:db8::/"),
+            Err(ParsePrefixError::InvalidLen(_))
+        ));
+        assert!(matches!(Prefix::from_str(""), Err(ParsePrefixError::Empty)));
     }
 
     #[test]
@@ -1060,9 +1023,8 @@ mod test {
     #[test]
     fn prefixes() {
         assert!(Prefix::new_v4(Ipv4Addr::from(0xffff0000), 16).is_ok());
-        assert!(
-            Prefix::new_v6(Ipv6Addr::from(0x2001_0db8_1234 << 80), 48).is_ok()
-        );
+        assert!(Prefix::new_v6(Ipv6Addr::from(0x2001_0db8_1234 << 80), 48)
+            .is_ok());
         assert!(matches!(
             Prefix::new_v4(Ipv4Addr::from(0xffffcafe), 16),
             Err(PrefixError::NonZeroHost)
@@ -1075,40 +1037,38 @@ mod test {
 
     #[test]
     fn ordering_maxlenprefixes() {
+        assert!(matches!(
+            MaxLenPrefix::from_str("192.168.0.0/16-16")
+                .unwrap()
+                .cmp(&MaxLenPrefix::from_str("192.168.0.0/16-16").unwrap()),
+            Ordering::Equal
+        ));
+        assert!(matches!(
+            MaxLenPrefix::from_str("192.168.0.0/16")
+                .unwrap()
+                .cmp(&MaxLenPrefix::from_str("192.168.0.0/16").unwrap()),
+            Ordering::Equal
+        ));
         assert!(
-            matches!(
-                MaxLenPrefix::from_str("192.168.0.0/16-16").unwrap().cmp(
-                    &MaxLenPrefix::from_str("192.168.0.0/16-16").unwrap()),
-                    Ordering::Equal
-            )
+            MaxLenPrefix::from_str("192.168.0.0/16-24").unwrap()
+                < MaxLenPrefix::from_str("192.168.0.0/16").unwrap()
         );
         assert!(
-            matches!(
-                MaxLenPrefix::from_str("192.168.0.0/16").unwrap().cmp(
-                    &MaxLenPrefix::from_str("192.168.0.0/16").unwrap()),
-                    Ordering::Equal
-            )
-        );
-        assert!(
-            MaxLenPrefix::from_str("192.168.0.0/16-24").unwrap() <
-            MaxLenPrefix::from_str("192.168.0.0/16").unwrap()
-        );
-        assert!(
-            MaxLenPrefix::from_str("192.168.0.0/16-16").unwrap() <
-            MaxLenPrefix::from_str("192.168.0.0/16").unwrap()
-        );
-        assert!(
-            MaxLenPrefix::from_str("192.168.0.0/16").unwrap() >
             MaxLenPrefix::from_str("192.168.0.0/16-16").unwrap()
+                < MaxLenPrefix::from_str("192.168.0.0/16").unwrap()
+        );
+        assert!(
+            MaxLenPrefix::from_str("192.168.0.0/16").unwrap()
+                > MaxLenPrefix::from_str("192.168.0.0/16-16").unwrap()
         );
 
         assert!(
-            MaxLenPrefix::from_str("10.9.0.0/16").unwrap() <
-            MaxLenPrefix::from_str("10.10.0.0/16-24").unwrap()
+            MaxLenPrefix::from_str("10.9.0.0/16").unwrap()
+                < MaxLenPrefix::from_str("10.10.0.0/16-24").unwrap()
         );
         assert!(
-            MaxLenPrefix::from_str("10.10.0.0/16").unwrap() >
-            MaxLenPrefix::from_str("10.9.0.0/16-24").unwrap()
+            MaxLenPrefix::from_str("10.10.0.0/16").unwrap()
+                > MaxLenPrefix::from_str("10.9.0.0/16-24").unwrap()
         );
     }
 
@@ -1116,33 +1076,45 @@ mod test {
     fn relaxed_prefixes() {
         assert_eq!(
             Prefix::new_relaxed(
-                "192.168.10.20".parse::<IpAddr>().unwrap(), 16)
+                "192.168.10.20".parse::<IpAddr>().unwrap(),
+                16
+            )
             .unwrap(),
             Prefix::new_v4_relaxed(
-                "192.168.10.20".parse::<Ipv4Addr>().unwrap(), 16)
+                "192.168.10.20".parse::<Ipv4Addr>().unwrap(),
+                16
+            )
             .unwrap()
         );
         assert_eq!(
             Prefix::new_relaxed(
-                "192.168.10.20".parse::<IpAddr>().unwrap(), 16).unwrap(),
-            Prefix::new_relaxed(
-                "192.168.0.0".parse::<IpAddr>().unwrap(), 16).unwrap(),
+                "192.168.10.20".parse::<IpAddr>().unwrap(),
+                16
+            )
+            .unwrap(),
+            Prefix::new_relaxed("192.168.0.0".parse::<IpAddr>().unwrap(), 16)
+                .unwrap(),
         );
         assert_eq!(
             Prefix::new_relaxed(
-                "2001:db8::10:20:30:40".parse::<IpAddr>().unwrap(), 64)
+                "2001:db8::10:20:30:40".parse::<IpAddr>().unwrap(),
+                64
+            )
             .unwrap(),
             Prefix::new_v6_relaxed(
-                "2001:db8::10:20:30:40".parse::<Ipv6Addr>().unwrap(), 64)
+                "2001:db8::10:20:30:40".parse::<Ipv6Addr>().unwrap(),
+                64
+            )
             .unwrap()
         );
         assert_eq!(
             Prefix::new_relaxed(
-                "2001:db8::10:20:30:40".parse::<IpAddr>().unwrap(), 64)
+                "2001:db8::10:20:30:40".parse::<IpAddr>().unwrap(),
+                64
+            )
             .unwrap(),
-            Prefix::new_relaxed(
-                "2001:db8::".parse::<IpAddr>().unwrap(), 64)
-            .unwrap()
+            Prefix::new_relaxed("2001:db8::".parse::<IpAddr>().unwrap(), 64)
+                .unwrap()
         );
     }
 
@@ -1174,57 +1146,62 @@ mod test {
             IpAddr::from_str("2001:db8:10:20:ffff:ffff:ffff:ffff").unwrap()
         );
         assert_eq!(
-            Prefix::from_str("2001:db8:10:20::1234/128").unwrap().min_addr(),
+            Prefix::from_str("2001:db8:10:20::1234/128")
+                .unwrap()
+                .min_addr(),
             IpAddr::from_str("2001:db8:10:20::1234").unwrap()
         );
         assert_eq!(
-            Prefix::from_str("2001:db8:10:20::1234/128").unwrap().min_addr(),
-            Prefix::from_str("2001:db8:10:20::1234/128").unwrap().max_addr()
+            Prefix::from_str("2001:db8:10:20::1234/128")
+                .unwrap()
+                .min_addr(),
+            Prefix::from_str("2001:db8:10:20::1234/128")
+                .unwrap()
+                .max_addr()
         );
     }
 
     #[test]
     fn covers() {
-        assert!(Prefix::from_str("0.0.0.0/0").unwrap().covers(
-                Prefix::from_str("192.168.10.0/24").unwrap())
-        );
-        assert!(Prefix::from_str("::/0").unwrap().covers(
-                Prefix::from_str("2001:db8:10::/48").unwrap())
-        );
+        assert!(Prefix::from_str("0.0.0.0/0")
+            .unwrap()
+            .covers(Prefix::from_str("192.168.10.0/24").unwrap()));
+        assert!(Prefix::from_str("::/0")
+            .unwrap()
+            .covers(Prefix::from_str("2001:db8:10::/48").unwrap()));
 
-        assert!(Prefix::from_str("192.168.0.0/16").unwrap().covers(
-                Prefix::from_str("192.168.10.0/24").unwrap())
-        );
-        assert!(!Prefix::from_str("192.168.10.0/24").unwrap().covers(
-                Prefix::from_str("192.168.0.0/16").unwrap())
-        );
-        assert!(Prefix::from_str("2001:db8:10::/48").unwrap().covers(
-                Prefix::from_str("2001:db8:10:20::/64").unwrap())
-        );
-        assert!(!Prefix::from_str("2001:db8:10:20::/64").unwrap().covers(
-                Prefix::from_str("2001:db8:10::/48").unwrap())
-        );
+        assert!(Prefix::from_str("192.168.0.0/16")
+            .unwrap()
+            .covers(Prefix::from_str("192.168.10.0/24").unwrap()));
+        assert!(!Prefix::from_str("192.168.10.0/24")
+            .unwrap()
+            .covers(Prefix::from_str("192.168.0.0/16").unwrap()));
+        assert!(Prefix::from_str("2001:db8:10::/48")
+            .unwrap()
+            .covers(Prefix::from_str("2001:db8:10:20::/64").unwrap()));
+        assert!(!Prefix::from_str("2001:db8:10:20::/64")
+            .unwrap()
+            .covers(Prefix::from_str("2001:db8:10::/48").unwrap()));
 
-        assert!(Prefix::from_str("192.168.10.1/32").unwrap().covers(
-                Prefix::from_str("192.168.10.1/32").unwrap())
-        );
-        assert!(!Prefix::from_str("192.168.10.1/32").unwrap().covers(
-                Prefix::from_str("192.168.10.2/32").unwrap())
-        );
-        assert!(Prefix::from_str("2001:db8:10::1234/128").unwrap().covers(
-                Prefix::from_str("2001:db8:10::1234/128").unwrap())
-        );
-        assert!(!Prefix::from_str("2001:db8:10::abcd/128").unwrap().covers(
-                Prefix::from_str("2001:db8:10::1234/128").unwrap())
-        );
+        assert!(Prefix::from_str("192.168.10.1/32")
+            .unwrap()
+            .covers(Prefix::from_str("192.168.10.1/32").unwrap()));
+        assert!(!Prefix::from_str("192.168.10.1/32")
+            .unwrap()
+            .covers(Prefix::from_str("192.168.10.2/32").unwrap()));
+        assert!(Prefix::from_str("2001:db8:10::1234/128")
+            .unwrap()
+            .covers(Prefix::from_str("2001:db8:10::1234/128").unwrap()));
+        assert!(!Prefix::from_str("2001:db8:10::abcd/128")
+            .unwrap()
+            .covers(Prefix::from_str("2001:db8:10::1234/128").unwrap()));
 
-
-        assert!(!Prefix::from_str("192.168.10.0/24").unwrap().covers(
-                Prefix::from_str("2001:db8::1/128").unwrap())
-        );
-        assert!(!Prefix::from_str("2001:db8::1/128").unwrap().covers(
-                Prefix::from_str("192.168.10.0/24").unwrap())
-        );
+        assert!(!Prefix::from_str("192.168.10.0/24")
+            .unwrap()
+            .covers(Prefix::from_str("2001:db8::1/128").unwrap()));
+        assert!(!Prefix::from_str("2001:db8::1/128")
+            .unwrap()
+            .covers(Prefix::from_str("192.168.10.0/24").unwrap()));
     }
 
     #[test]
@@ -1264,7 +1241,6 @@ mod test {
             Err(MaxLenError::Overflow)
         ));
 
-
         for i in 0..16 {
             assert_eq!(
                 MaxLenPrefix::saturating_new(pfx4, Some(i)),
@@ -1303,7 +1279,9 @@ mod test {
         }
 
         assert_eq!(
-            MaxLenPrefix::new(pfx6, Some(56)).unwrap().resolved_max_len(),
+            MaxLenPrefix::new(pfx6, Some(56))
+                .unwrap()
+                .resolved_max_len(),
             56
         );
         assert_eq!(
@@ -1319,38 +1297,33 @@ mod test {
             MaxLenPrefix::from_str("192.168.0.0/16").unwrap(),
             MaxLenPrefix::new(pfx4, None).unwrap()
         );
-        assert!(
-            matches!(
-                MaxLenPrefix::from_str("192.168.0.0/16-"),
-                Err(ParseMaxLenPrefixError::InvalidMaxLenFormat(_))
-            )
-        );
-        assert!(
-            matches!(
-                MaxLenPrefix::from_str("192.168.0.0/16-0"),
-                Err(ParseMaxLenPrefixError::InvalidMaxLenValue(_))
-            )
-        );
-        assert!(
-            matches!(
-                MaxLenPrefix::from_str("192.168.0.0/16-33"),
-                Err(ParseMaxLenPrefixError::InvalidMaxLenValue(_))
-            )
-        );
+        assert!(matches!(
+            MaxLenPrefix::from_str("192.168.0.0/16-"),
+            Err(ParseMaxLenPrefixError::InvalidMaxLenFormat(_))
+        ));
+        assert!(matches!(
+            MaxLenPrefix::from_str("192.168.0.0/16-0"),
+            Err(ParseMaxLenPrefixError::InvalidMaxLenValue(_))
+        ));
+        assert!(matches!(
+            MaxLenPrefix::from_str("192.168.0.0/16-33"),
+            Err(ParseMaxLenPrefixError::InvalidMaxLenValue(_))
+        ));
     }
 
     #[test]
     fn max_len_prefix_display() {
         assert_eq!(
             format!(
-                "{}", MaxLenPrefix::from_str("192.168.0.0/16-32").unwrap()
-            ).as_str(),
+                "{}",
+                MaxLenPrefix::from_str("192.168.0.0/16-32").unwrap()
+            )
+            .as_str(),
             "192.168.0.0/16-32"
         );
         assert_eq!(
-            format!(
-                "{}", MaxLenPrefix::from_str("192.168.0.0/16").unwrap()
-            ).as_str(),
+            format!("{}", MaxLenPrefix::from_str("192.168.0.0/16").unwrap())
+                .as_str(),
             "192.168.0.0/16"
         );
     }
@@ -1360,7 +1333,7 @@ mod test {
         assert_eq!(Bits(0), Bits(12345).clear_host(0));
     }
 
-    #[test] 
+    #[test]
     fn prefix_contains() {
         fn test(prefix: &str, addr: &str, expected: bool) {
             let p = Prefix::from_str(prefix).unwrap();
@@ -1375,14 +1348,11 @@ mod test {
             ("10.0.0.0/32", "10.0.0.0", true),
             ("10.0.0.0/8", "192.168.1.1", false),
             ("10.0.0.0/8", "2001:0db8::1", false),
-
             ("2001:0db8::/32", "2001:0db8::0", true),
             ("2001:0db8::/32", "2001:0db8::1", true),
             ("2001:0db8::/32", "10.0.0.1", false),
-            
             ("::0/120", "0.0.0.10", false),
             ("0.0.0.0/24", "::1", false),
-
             ("0.0.0.1/32", "::1", false),
             ("0.0.0.1/32", "0.0.0.1", true),
             ("::1/128", "0.0.0.1", false),
