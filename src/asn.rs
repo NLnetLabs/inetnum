@@ -1,13 +1,10 @@
 //! Types for Autonomous Systems Numbers (ASN) and ASN collections
 
-use std::{error, fmt, iter, ops, slice};
 use std::cmp::Ordering;
 use std::convert::TryInto;
-use std::str::FromStr;
 use std::iter::Peekable;
-
-#[cfg(feature = "octseq")]
-use octseq::builder::OctetsBuilder;
+use std::str::FromStr;
+use std::{error, fmt, iter, ops, slice};
 
 //------------ Asn -----------------------------------------------------------
 
@@ -15,11 +12,12 @@ use octseq::builder::OctetsBuilder;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[repr(transparent)]
 pub struct Asn(u32);
 
 impl Asn {
-    pub const MIN: Asn = Asn(std::u32::MIN);
-    pub const MAX: Asn = Asn(std::u32::MAX);
+    pub const MIN: Asn = Asn(u32::MIN);
+    pub const MAX: Asn = Asn(u32::MAX);
 
     /// Creates an AS number from a `u32`.
     pub fn from_u32(value: u32) -> Self {
@@ -47,8 +45,9 @@ impl Asn {
     }
 
     #[cfg(feature = "octseq")]
-    pub fn compose<Target: OctetsBuilder>(
-        self, target: &mut Target
+    pub fn compose<Target: octseq::OctetsBuilder>(
+        self,
+        target: &mut Target,
     ) -> Result<(), Target::AppendError> {
         target.append_slice(&self.to_raw())
     }
@@ -92,7 +91,6 @@ impl FromStr for Asn {
     }
 }
 
-
 //--- Serialize and Deserialize
 
 /// # Serialization
@@ -113,21 +111,24 @@ impl Asn {
     /// inside which most serialization formats will turn into a sole `u32`.
     /// However, in case your format doesn’t, you can use this method.
     pub fn serialize_as_u32<S: serde::Serializer>(
-        &self, serializer: S
+        &self,
+        serializer: S,
     ) -> Result<S::Ok, S::Error> {
         serializer.serialize_u32(self.0)
     }
 
     /// Serializes an AS number as a string without prefix.
     pub fn serialize_as_bare_str<S: serde::Serializer>(
-        &self, serializer: S
+        &self,
+        serializer: S,
     ) -> Result<S::Ok, S::Error> {
         serializer.collect_str(&format_args!("{}", self.0))
     }
 
     /// Seriaizes an AS number as a string with a `AS` prefix.
     pub fn serialize_as_str<S: serde::Serializer>(
-        &self, serializer: S
+        &self,
+        serializer: S,
     ) -> Result<S::Ok, S::Error> {
         serializer.collect_str(&format_args!("AS{}", self.0))
     }
@@ -139,7 +140,7 @@ impl Asn {
     /// `u32` inside for which most serialization formats will use a sole
     /// `u32`. However, in case your format doesn’t, you can use this method.
     pub fn deserialize_from_u32<'de, D: serde::Deserializer<'de>>(
-        deserializer: D
+        deserializer: D,
     ) -> Result<Self, D::Error> {
         <u32 as serde::Deserialize>::deserialize(deserializer).map(Into::into)
     }
@@ -148,21 +149,23 @@ impl Asn {
     ///
     /// The string may or may not have a case-insensitive `"AS"` prefix.
     pub fn deserialize_from_str<'de, D: serde::de::Deserializer<'de>>(
-        deserializer: D
+        deserializer: D,
     ) -> Result<Self, D::Error> {
         struct Visitor;
 
-        impl<'de> serde::de::Visitor<'de> for Visitor {
+        impl serde::de::Visitor<'_> for Visitor {
             type Value = Asn;
 
             fn expecting(
-                &self, formatter: &mut fmt::Formatter
+                &self,
+                formatter: &mut fmt::Formatter,
             ) -> fmt::Result {
                 write!(formatter, "an AS number")
             }
 
             fn visit_str<E: serde::de::Error>(
-                self, v: &str
+                self,
+                v: &str,
             ) -> Result<Self::Value, E> {
                 Asn::from_str(v).map_err(E::custom)
             }
@@ -177,69 +180,79 @@ impl Asn {
     /// AS number as any kind of integer as well as a string with or without
     /// a case-insensitive `"AS"` prefix.
     pub fn deserialize_from_any<'de, D: serde::de::Deserializer<'de>>(
-        deserializer: D
+        deserializer: D,
     ) -> Result<Self, D::Error> {
         struct Visitor;
 
-        impl<'de> serde::de::Visitor<'de> for Visitor {
+        impl serde::de::Visitor<'_> for Visitor {
             type Value = Asn;
 
             fn expecting(
-                &self, formatter: &mut fmt::Formatter
+                &self,
+                formatter: &mut fmt::Formatter,
             ) -> fmt::Result {
                 write!(formatter, "an AS number")
             }
 
             fn visit_u8<E: serde::de::Error>(
-                self, v: u8
+                self,
+                v: u8,
             ) -> Result<Self::Value, E> {
                 Ok(Asn(v.into()))
             }
 
             fn visit_u16<E: serde::de::Error>(
-                self, v: u16
+                self,
+                v: u16,
             ) -> Result<Self::Value, E> {
                 Ok(Asn(v.into()))
             }
 
             fn visit_u32<E: serde::de::Error>(
-                self, v: u32
+                self,
+                v: u32,
             ) -> Result<Self::Value, E> {
                 Ok(Asn(v))
             }
 
             fn visit_u64<E: serde::de::Error>(
-                self, v: u64
+                self,
+                v: u64,
             ) -> Result<Self::Value, E> {
                 Ok(Asn(v.try_into().map_err(E::custom)?))
             }
 
             fn visit_i8<E: serde::de::Error>(
-                self, v: i8
+                self,
+                v: i8,
             ) -> Result<Self::Value, E> {
                 Ok(Asn(v.try_into().map_err(E::custom)?))
             }
 
             fn visit_i16<E: serde::de::Error>(
-                self, v: i16
+                self,
+                v: i16,
             ) -> Result<Self::Value, E> {
                 Ok(Asn(v.try_into().map_err(E::custom)?))
             }
 
             fn visit_i32<E: serde::de::Error>(
-                self, v: i32
+                self,
+                v: i32,
             ) -> Result<Self::Value, E> {
                 Ok(Asn(v.try_into().map_err(E::custom)?))
             }
 
             fn visit_i64<E: serde::de::Error>(
-                self, v: i64
+                self,
+                v: i64,
             ) -> Result<Self::Value, E> {
                 Ok(Asn(v.try_into().map_err(E::custom)?))
             }
 
             fn visit_str<E: serde::de::Error>(
-                self, v: &str
+                self,
+                v: &str,
             ) -> Result<Self::Value, E> {
                 Asn::from_str(v).map_err(E::custom)
             }
@@ -266,14 +279,12 @@ impl fmt::Display for Asn {
     }
 }
 
-
-
 //------------ Asn16 ---------------------------------------------------------
 
 /// A 2-octet ASN.
 ///
 /// This is only here to facilitate 'legacy' BGP, i.e., BGP messages in a BGP
-/// session for which the FourOctet Capability has not been exchanged. 
+/// session for which the FourOctet Capability has not been exchanged.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Asn16(u16);
@@ -301,7 +312,6 @@ impl fmt::Display for Asn16 {
     }
 }
 
-
 //--- From / FromStr
 
 impl From<u16> for Asn16 {
@@ -322,22 +332,20 @@ impl FromStr for Asn16 {
     type Err = ParseAsnError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        u16::from_str(strip_as(s)).map_err(|_| ParseAsnError)
+        u16::from_str(strip_as(s))
+            .map_err(|_| ParseAsnError)
             .map(Asn16::from_u16)
-    
-    // more strict version:
-    /*
-        s.strip_prefix("AS").ok_or_else(|| "missing AS".into())
-            .and_then(|e| u16::from_str(e)
-                      .map_err(|_e| "u16 parsing failed".into())
-                     )
-            .map(Asn16::from_u16)
-    */
+
+        // more strict version:
+        /*
+            s.strip_prefix("AS").ok_or_else(|| "missing AS".into())
+                .and_then(|e| u16::from_str(e)
+                          .map_err(|_e| "u16 parsing failed".into())
+                         )
+                .map(Asn16::from_u16)
+        */
     }
 }
-
-
-
 
 //------------ SmallAsnSet --------------------------------------------------
 
@@ -364,7 +372,8 @@ impl SmallAsnSet {
     }
 
     pub fn difference<'a>(
-        &'a self, other: &'a Self
+        &'a self,
+        other: &'a Self,
     ) -> SmallSetDifference<'a> {
         SmallSetDifference {
             left: self.iter().peekable(),
@@ -373,7 +382,8 @@ impl SmallAsnSet {
     }
 
     pub fn symmetric_difference<'a>(
-        &'a self, other: &'a Self
+        &'a self,
+        other: &'a Self,
     ) -> SmallSetSymmetricDifference<'a> {
         SmallSetSymmetricDifference {
             left: self.iter().peekable(),
@@ -382,7 +392,8 @@ impl SmallAsnSet {
     }
 
     pub fn intersection<'a>(
-        &'a self, other: &'a Self
+        &'a self,
+        other: &'a Self,
     ) -> SmallSetIntersection<'a> {
         SmallSetIntersection {
             left: self.iter().peekable(),
@@ -404,7 +415,6 @@ impl SmallAsnSet {
     // Missing: is_disjoint, is_subset, is_superset, insert, remove,
 }
 
-
 impl iter::FromIterator<Asn> for SmallAsnSet {
     fn from_iter<T: IntoIterator<Item = Asn>>(iter: T) -> Self {
         let mut res = Self(iter.into_iter().collect());
@@ -422,11 +432,9 @@ impl<'a> IntoIterator for &'a SmallAsnSet {
     }
 }
 
-
 //------------ SmallSetIter --------------------------------------------------
 
 pub type SmallSetIter<'a> = iter::Cloned<slice::Iter<'a, Asn>>;
-
 
 //------------ SmallSetDifference --------------------------------------------
 
@@ -435,7 +443,7 @@ pub struct SmallSetDifference<'a> {
     right: Peekable<SmallSetIter<'a>>,
 }
 
-impl<'a> Iterator for SmallSetDifference<'a> {
+impl Iterator for SmallSetDifference<'_> {
     type Item = Asn;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -443,23 +451,20 @@ impl<'a> Iterator for SmallSetDifference<'a> {
             match (self.left.peek(), self.right.peek()) {
                 (None, _) => return None,
                 (Some(_), None) => return self.left.next(),
-                (Some(left), Some(right)) => {
-                    match left.cmp(right) {
-                        Ordering::Less => return self.left.next(),
-                        Ordering::Equal => {
-                            let _ = self.left.next();
-                            let _ = self.right.next();
-                        }
-                        Ordering::Greater => {
-                            let _ = self.right.next();
-                        }
+                (Some(left), Some(right)) => match left.cmp(right) {
+                    Ordering::Less => return self.left.next(),
+                    Ordering::Equal => {
+                        let _ = self.left.next();
+                        let _ = self.right.next();
                     }
-                }
+                    Ordering::Greater => {
+                        let _ = self.right.next();
+                    }
+                },
             }
         }
     }
 }
-
 
 //------------ SmallSetSymmetricDifference -----------------------------------
 
@@ -468,30 +473,27 @@ pub struct SmallSetSymmetricDifference<'a> {
     right: Peekable<SmallSetIter<'a>>,
 }
 
-impl<'a> Iterator for SmallSetSymmetricDifference<'a> {
+impl Iterator for SmallSetSymmetricDifference<'_> {
     type Item = Asn;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            match (self.left.peek(),self. right.peek()) {
+            match (self.left.peek(), self.right.peek()) {
                 (None, None) => return None,
                 (Some(_), None) => return self.left.next(),
                 (None, Some(_)) => return self.right.next(),
-                (Some(left), Some(right)) => {
-                    match left.cmp(right) {
-                        Ordering::Equal => {
-                            let _ = self.left.next();
-                            let _ = self.right.next();
-                        }
-                        Ordering::Less => return self.left.next(),
-                        Ordering::Greater => return self.right.next(),
+                (Some(left), Some(right)) => match left.cmp(right) {
+                    Ordering::Equal => {
+                        let _ = self.left.next();
+                        let _ = self.right.next();
                     }
-                }
+                    Ordering::Less => return self.left.next(),
+                    Ordering::Greater => return self.right.next(),
+                },
             }
         }
     }
 }
-
 
 //------------ SmallSetIntersection ------------------------------------------
 
@@ -500,32 +502,29 @@ pub struct SmallSetIntersection<'a> {
     right: Peekable<SmallSetIter<'a>>,
 }
 
-impl<'a> Iterator for SmallSetIntersection<'a> {
+impl Iterator for SmallSetIntersection<'_> {
     type Item = Asn;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            match (self.left.peek(),self. right.peek()) {
+            match (self.left.peek(), self.right.peek()) {
                 (None, _) | (_, None) => return None,
-                (Some(left), Some(right)) => {
-                    match left.cmp(right) {
-                        Ordering::Equal => {
-                            let _ = self.left.next();
-                            return self.right.next()
-                        }
-                        Ordering::Less => {
-                            let _ = self.left.next();
-                        }
-                        Ordering::Greater => {
-                            let _ = self.right.next();
-                        }
+                (Some(left), Some(right)) => match left.cmp(right) {
+                    Ordering::Equal => {
+                        let _ = self.left.next();
+                        return self.right.next();
                     }
-                }
+                    Ordering::Less => {
+                        let _ = self.left.next();
+                    }
+                    Ordering::Greater => {
+                        let _ = self.right.next();
+                    }
+                },
             }
         }
     }
 }
-
 
 //------------ SmallSetUnion -------------------------------------------------
 
@@ -534,30 +533,25 @@ pub struct SmallSetUnion<'a> {
     right: Peekable<SmallSetIter<'a>>,
 }
 
-impl<'a> Iterator for SmallSetUnion<'a> {
+impl Iterator for SmallSetUnion<'_> {
     type Item = Asn;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match (self.left.peek(),self. right.peek()) {
+        match (self.left.peek(), self.right.peek()) {
             (None, None) => None,
             (Some(_), None) => self.left.next(),
             (None, Some(_)) => self.right.next(),
-            (Some(left), Some(right)) => {
-                match left.cmp(right) {
-                    Ordering::Less => self.left.next(),
-                    Ordering::Equal => {
-                        let _ = self.left.next();
-                        self.right.next()
-                    }
-                    Ordering::Greater => {
-                        self.right.next()
-                    }
+            (Some(left), Some(right)) => match left.cmp(right) {
+                Ordering::Less => self.left.next(),
+                Ordering::Equal => {
+                    let _ = self.left.next();
+                    self.right.next()
                 }
-            }
+                Ordering::Greater => self.right.next(),
+            },
         }
     }
 }
-
 
 //============ Error Types ===================================================
 
@@ -598,8 +592,7 @@ impl fmt::Display for LongSegmentError {
     }
 }
 
-impl error::Error for LongSegmentError { }
-
+impl error::Error for LongSegmentError {}
 
 //------------ InvalidSegmentTypeError ---------------------------------------
 
@@ -612,44 +605,45 @@ impl fmt::Display for InvalidSegmentTypeError {
     }
 }
 
-impl error::Error for InvalidSegmentTypeError { }
-
+impl error::Error for InvalidSegmentTypeError {}
 
 //============ Tests =========================================================
 
 #[cfg(all(test, feature = "serde"))]
 mod test_serde {
     use super::*;
-    use serde_test::{Token, assert_de_tokens, assert_tokens};
-    
+    use serde_test::{assert_de_tokens, assert_tokens, Token};
+
     #[test]
     fn asn() {
         #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
         struct AsnTest(
             Asn,
-
             #[serde(
                 deserialize_with = "Asn::deserialize_from_u32",
-                serialize_with = "Asn::serialize_as_u32",
+                serialize_with = "Asn::serialize_as_u32"
             )]
             Asn,
-
             #[serde(
                 deserialize_with = "Asn::deserialize_from_str",
-                serialize_with = "Asn::serialize_as_str",
+                serialize_with = "Asn::serialize_as_str"
             )]
             Asn,
         );
 
         assert_tokens(
-            &AsnTest ( Asn(0), Asn(0), Asn(0) ),
+            &AsnTest(Asn(0), Asn(0), Asn(0)),
             &[
-                Token::TupleStruct { name: "AsnTest", len: 3 },
-                Token::NewtypeStruct { name: "Asn" }, Token::U32(0),
+                Token::TupleStruct {
+                    name: "AsnTest",
+                    len: 3,
+                },
+                Token::NewtypeStruct { name: "Asn" },
+                Token::U32(0),
                 Token::U32(0),
                 Token::Str("AS0"),
                 Token::TupleStructEnd,
-            ]
+            ],
         );
     }
 
@@ -657,24 +651,21 @@ mod test_serde {
     fn asn_any() {
         #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
         struct AsnTest(
-            #[serde(deserialize_with = "Asn::deserialize_from_any")]
-            Asn,
-            #[serde(deserialize_with = "Asn::deserialize_from_any")]
-            Asn,
-            #[serde(deserialize_with = "Asn::deserialize_from_any")]
-            Asn,
-            #[serde(deserialize_with = "Asn::deserialize_from_any")]
-            Asn,
-            #[serde(deserialize_with = "Asn::deserialize_from_any")]
-            Asn,
-            #[serde(deserialize_with = "Asn::deserialize_from_any")]
-            Asn,
+            #[serde(deserialize_with = "Asn::deserialize_from_any")] Asn,
+            #[serde(deserialize_with = "Asn::deserialize_from_any")] Asn,
+            #[serde(deserialize_with = "Asn::deserialize_from_any")] Asn,
+            #[serde(deserialize_with = "Asn::deserialize_from_any")] Asn,
+            #[serde(deserialize_with = "Asn::deserialize_from_any")] Asn,
+            #[serde(deserialize_with = "Asn::deserialize_from_any")] Asn,
         );
 
         assert_de_tokens(
             &AsnTest(Asn(0), Asn(0), Asn(0), Asn(0), Asn(0), Asn(0)),
             &[
-                Token::TupleStruct { name: "AsnTest", len: 5 },
+                Token::TupleStruct {
+                    name: "AsnTest",
+                    len: 5,
+                },
                 Token::U32(0),
                 Token::U64(0),
                 Token::I64(0),
@@ -682,7 +673,7 @@ mod test_serde {
                 Token::Str("AS0"),
                 Token::Str("As0"),
                 Token::TupleStructEnd,
-            ]
+            ],
         );
     }
 }
@@ -724,25 +715,19 @@ mod tests {
             let right = Vec::from_iter($right.into_iter().map(Asn::from_u32));
 
             let set_fn = {
-                let left = SmallAsnSet::from_iter(
-                    left.clone().into_iter()
-                );
-                let right = SmallAsnSet::from_iter(
-                    right.clone().into_iter()
-                );
+                let left = SmallAsnSet::from_iter(left.clone().into_iter());
+                let right = SmallAsnSet::from_iter(right.clone().into_iter());
                 left.$fn(&right).collect::<HashSet<Asn>>()
             };
             let hash_fn: HashSet<Asn> = {
-                let left: HashSet<Asn> = HashSet::from_iter(
-                    left.clone().into_iter()
-                );
-                let right: HashSet<Asn> = HashSet::from_iter(
-                    right.clone().into_iter()
-                );
+                let left: HashSet<Asn> =
+                    HashSet::from_iter(left.clone().into_iter());
+                let right: HashSet<Asn> =
+                    HashSet::from_iter(right.clone().into_iter());
                 left.$fn(&right).cloned().collect()
             };
             assert_eq!(set_fn, hash_fn);
-        }}
+        }};
     }
 
     macro_rules! check_all_set_fns {
@@ -751,7 +736,7 @@ mod tests {
             check_set_fn!(symmetric_difference, $left, $right);
             check_set_fn!(intersection, $left, $right);
             check_set_fn!(union, $left, $right);
-        }}
+        }};
     }
 
     #[test]
