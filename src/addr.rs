@@ -6,6 +6,10 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 use std::{error, fmt};
 
+use zerocopy::{FromBytes, Immutable, KnownLayout};
+#[cfg(feature = "zerocopy")]
+use zerocopy::{IntoBytes, Unaligned};
+
 //------------ Bits ----------------------------------------------------------
 
 /// The value of an IP address.
@@ -22,7 +26,11 @@ use std::{error, fmt};
 /// of this type. This information needs to be carried separately.
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-struct Bits(u128);
+#[cfg_attr(
+    feature = "zerocopy",
+    derive(IntoBytes, FromBytes, KnownLayout, Immutable)
+)]
+pub struct Bits(u128);
 
 impl Bits {
     /// Creates a new address from 128 raw bits in host byte order.
@@ -154,6 +162,10 @@ impl fmt::Debug for Bits {
 /// is a IPv6 prefix with the length encoded by flipping all the bits. The
 /// value of 64 stands in for an IPv6 prefix with length 128.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(
+    feature = "zerocopy",
+    derive(IntoBytes, FromBytes, KnownLayout, Immutable)
+)]
 struct FamilyAndLen(u8);
 
 impl FamilyAndLen {
@@ -226,7 +238,12 @@ impl<'a> arbitrary::Arbitrary<'a> for FamilyAndLen {
 /// The rationale behind this ordering is that in most use cases processing a
 /// more-specific before any less-specific is more efficient or preventing
 /// unwanted intermediate stage when evaluating prefixes in order.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+#[cfg_attr(
+    feature = "zerocopy",
+    derive(IntoBytes, Unaligned, FromBytes, Immutable, KnownLayout)
+)]
+#[cfg_attr(feature = "zerocopy", repr(C, packed))]
 pub struct Prefix {
     /// The address family and prefix length all in one.
     family_and_len: FamilyAndLen,
@@ -414,7 +431,9 @@ impl Ord for Prefix {
             // v4 v4 or v6 v6
             (_, _) => {
                 if self.len() == other.len() {
-                    self.bits.0.cmp(&other.bits.0)
+                    let sb = self.bits.0;
+                    let ob = other.bits.0;
+                    sb.cmp(&ob)
                 } else {
                     let minlen = std::cmp::min(self.len(), other.len());
                     let mask = !(u128::MAX >> minlen);
@@ -422,7 +441,9 @@ impl Ord for Prefix {
                         // more-specific before less-specific
                         other.len().cmp(&self.len())
                     } else {
-                        self.bits.0.cmp(&other.bits.0)
+                        let sb = self.bits.0;
+                        let ob = other.bits.0;
+                        sb.cmp(&ob)
                     }
                 }
             }
@@ -492,6 +513,12 @@ impl FromStr for Prefix {
 impl fmt::Display for Prefix {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}/{}", self.addr(), self.len())
+    }
+}
+
+impl fmt::Debug for Prefix {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, fmt)
     }
 }
 
@@ -1360,5 +1387,32 @@ mod test {
         ] {
             test(i.0, i.1, i.2);
         }
+    }
+
+    #[test]
+    fn zero_copy() {
+        let bytes = [
+            24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 10, 32, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 12, 168, 192,
+        ];
+
+        let prefixes = [
+            Prefix::ref_from_bytes(&bytes[..17]).unwrap(),
+            Prefix::ref_from_bytes(&bytes[17..]).unwrap(),
+        ];
+
+        assert_eq!(
+            prefixes[0],
+            &Prefix::new_v4(<Ipv4Addr>::from_str("10.1.0.0").unwrap(), 24)
+                .unwrap()
+        );
+        assert_eq!(
+            prefixes[1],
+            &Prefix::new_v4(
+                <Ipv4Addr>::from_str("192.168.12.4").unwrap(),
+                32
+            )
+            .unwrap()
+        );
     }
 }

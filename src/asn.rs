@@ -1,37 +1,50 @@
 //! Types for Autonomous Systems Numbers (ASN) and ASN collections
 
 use std::cmp::Ordering;
-use std::convert::TryInto;
 use std::iter::Peekable;
 use std::str::FromStr;
-use std::{error, fmt, iter, ops, slice};
+use std::{error, fmt, iter, slice};
+
+#[cfg(feature = "zerocopy")]
+use zerocopy::FromBytes;
+#[cfg(feature = "zerocopy")]
+use zerocopy::IntoBytes;
+use zerocopy::{Immutable, KnownLayout};
 
 //------------ Asn -----------------------------------------------------------
 
 /// An AS number (ASN).
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(
+    feature = "zerocopy",
+    derive(IntoBytes, FromBytes, KnownLayout, Immutable)
+)]
 #[repr(transparent)]
-pub struct Asn(u32);
+pub struct Asn([u8; 4]);
 
 impl Asn {
-    pub const MIN: Asn = Asn(u32::MIN);
-    pub const MAX: Asn = Asn(u32::MAX);
+    pub const MIN: Asn = Asn([0, 0, 0, 0]);
+    pub const MAX: Asn = Asn([0xff, 0xff, 0xff, 0xff]);
 
     /// Creates an AS number from a `u32`.
     pub fn from_u32(value: u32) -> Self {
-        Asn(value)
+        Asn(value.to_be_bytes())
     }
 
     /// Converts an AS number into a `u32`.
     pub fn into_u32(self) -> u32 {
-        self.0
+        <u32>::from_be_bytes(self.0)
     }
 
     /// Try to convert a 4-octet AS number into a `u16`.
     pub fn try_into_u16(self) -> Result<u16, LargeAsnError> {
-        self.0.try_into().map_err(|_| LargeAsnError)
+        if <u16>::from_be_bytes(*self.0.last_chunk::<2>().unwrap()) > 0 {
+            return Err(LargeAsnError);
+        }
+
+        Ok(<u16>::from_be_bytes(*self.0.first_chunk::<2>().unwrap()))
     }
 
     /// Try to convert a 4-octet AS number into a 2-octet `Asn16`.
@@ -41,7 +54,7 @@ impl Asn {
 
     /// Converts an AS number into a network-order byte array.
     pub fn to_raw(self) -> [u8; 4] {
-        self.0.to_be_bytes()
+        self.0
     }
 
     #[cfg(feature = "octseq")]
@@ -65,13 +78,13 @@ impl Asn {
 
 impl From<u32> for Asn {
     fn from(id: u32) -> Self {
-        Asn(id)
+        Asn(id.to_be_bytes())
     }
 }
 
 impl From<Asn> for u32 {
     fn from(id: Asn) -> Self {
-        id.0
+        <u32>::from_be_bytes(id.0)
     }
 }
 
@@ -87,7 +100,9 @@ impl FromStr for Asn {
             s
         };
 
-        u32::from_str(s).map(Asn).map_err(|_| ParseAsnError)
+        u32::from_str(s)
+            .map(|asn| Asn(asn.to_be_bytes()))
+            .map_err(|_| ParseAsnError)
     }
 }
 
@@ -104,6 +119,12 @@ impl FromStr for Asn {
 /// struct.
 #[cfg(feature = "serde")]
 impl Asn {
+    pub fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u32(<u32>::from_be_bytes(self.0))
+    }
     /// Serializes an AS number as a simple `u32`.
     ///
     /// Normally, you wouldn’t need to use this method, as the default
@@ -114,7 +135,7 @@ impl Asn {
         &self,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        serializer.serialize_u32(self.0)
+        serializer.serialize_u32(<u32>::from_be_bytes(self.0))
     }
 
     /// Serializes an AS number as a string without prefix.
@@ -122,7 +143,8 @@ impl Asn {
         &self,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        serializer.collect_str(&format_args!("{}", self.0))
+        serializer
+            .collect_str(&format_args!("{}", <u32>::from_be_bytes(self.0)))
     }
 
     /// Seriaizes an AS number as a string with a `AS` prefix.
@@ -130,7 +152,8 @@ impl Asn {
         &self,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        serializer.collect_str(&format_args!("AS{}", self.0))
+        serializer
+            .collect_str(&format_args!("AS{}", <u32>::from_be_bytes(self.0)))
     }
 
     /// Deserializes an AS number from a simple `u32`.
@@ -198,56 +221,58 @@ impl Asn {
                 self,
                 v: u8,
             ) -> Result<Self::Value, E> {
-                Ok(Asn(v.into()))
+                Ok(Asn([0, 0, 0, v]))
             }
 
             fn visit_u16<E: serde::de::Error>(
                 self,
                 v: u16,
             ) -> Result<Self::Value, E> {
-                Ok(Asn(v.into()))
+                let b = v.to_be_bytes();
+                Ok(Asn([0, 0, b[0], b[1]]))
             }
 
             fn visit_u32<E: serde::de::Error>(
                 self,
                 v: u32,
             ) -> Result<Self::Value, E> {
-                Ok(Asn(v))
+                Ok(Asn(v.to_be_bytes()))
             }
 
             fn visit_u64<E: serde::de::Error>(
                 self,
                 v: u64,
             ) -> Result<Self::Value, E> {
-                Ok(Asn(v.try_into().map_err(E::custom)?))
+                Ok(Asn(<u32>::try_from(v).map_err(E::custom)?.to_be_bytes()))
             }
 
             fn visit_i8<E: serde::de::Error>(
                 self,
                 v: i8,
             ) -> Result<Self::Value, E> {
-                Ok(Asn(v.try_into().map_err(E::custom)?))
+                Ok(Asn([0, 0, 0, <u8>::try_from(v).map_err(E::custom)?]))
             }
 
             fn visit_i16<E: serde::de::Error>(
                 self,
                 v: i16,
             ) -> Result<Self::Value, E> {
-                Ok(Asn(v.try_into().map_err(E::custom)?))
+                let vv = <u32>::try_from(v).map_err(E::custom)?.to_be_bytes();
+                Ok(Asn([0, 0, vv[0], vv[1]]))
             }
 
             fn visit_i32<E: serde::de::Error>(
                 self,
                 v: i32,
             ) -> Result<Self::Value, E> {
-                Ok(Asn(v.try_into().map_err(E::custom)?))
+                Ok(Asn(<u32>::try_from(v).map_err(E::custom)?.to_be_bytes()))
             }
 
             fn visit_i64<E: serde::de::Error>(
                 self,
                 v: i64,
             ) -> Result<Self::Value, E> {
-                Ok(Asn(v.try_into().map_err(E::custom)?))
+                Ok(Asn(<u32>::try_from(v).map_err(E::custom)?.to_be_bytes()))
             }
 
             fn visit_str<E: serde::de::Error>(
@@ -263,19 +288,25 @@ impl Asn {
 
 //--- Add
 
-impl ops::Add<u32> for Asn {
-    type Output = Self;
+// impl ops::Add<u32> for Asn {
+//     type Output = Self;
 
-    fn add(self, rhs: u32) -> Self {
-        Asn(self.0.checked_add(rhs).unwrap())
-    }
-}
+//     fn add(self, rhs: u32) -> Self {
+//         Asn(self.0.checked_add(rhs).unwrap())
+//     }
+// }
 
 //--- Display
 
 impl fmt::Display for Asn {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "AS{}", self.0)
+        write!(f, "AS{}", <u32>::from_be_bytes(self.0))
+    }
+}
+
+impl fmt::Debug for Asn {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, fmt)
     }
 }
 
@@ -630,16 +661,23 @@ mod test_serde {
             )]
             Asn,
         );
+        let asn_test = AsnTest(Asn::from(0), Asn::from(0), Asn::from(0));
+        println!("{asn_test:?}");
 
         assert_tokens(
-            &AsnTest(Asn(0), Asn(0), Asn(0)),
+            &asn_test,
             &[
                 Token::TupleStruct {
                     name: "AsnTest",
                     len: 3,
                 },
                 Token::NewtypeStruct { name: "Asn" },
-                Token::U32(0),
+                Token::Tuple { len: 4 },
+                Token::U8(0),
+                Token::U8(0),
+                Token::U8(0),
+                Token::U8(0),
+                Token::TupleEnd,
                 Token::U32(0),
                 Token::Str("AS0"),
                 Token::TupleStructEnd,
@@ -660,7 +698,14 @@ mod test_serde {
         );
 
         assert_de_tokens(
-            &AsnTest(Asn(0), Asn(0), Asn(0), Asn(0), Asn(0), Asn(0)),
+            &AsnTest(
+                Asn::from(0),
+                Asn::from(0),
+                Asn::from(0),
+                Asn::from(0),
+                Asn::from(0),
+                Asn::from(0),
+            ),
             &[
                 Token::TupleStruct {
                     name: "AsnTest",
@@ -685,20 +730,20 @@ mod tests {
 
     #[test]
     fn asn() {
-        assert_eq!(Asn::from_u32(1234), Asn(1234));
-        assert_eq!(Asn(1234).into_u32(), 1234);
+        assert_eq!(Asn::from_u32(1234), Asn::from(1234));
+        assert_eq!(Asn::from(1234).into_u32(), 1234);
 
-        assert_eq!(Asn::from(1234_u32), Asn(1234));
-        assert_eq!(u32::from(Asn(1234)), 1234_u32);
+        assert_eq!(Asn::from(1234_u32), Asn::from(1234));
+        assert_eq!(u32::from(Asn::from(1234)), 1234_u32);
 
-        assert_eq!(format!("{}", Asn(1234)).as_str(), "AS1234");
+        assert_eq!(format!("{}", Asn::from(1234)).as_str(), "AS1234");
 
-        assert_eq!("0".parse::<Asn>(), Ok(Asn(0)));
-        assert_eq!("AS1234".parse::<Asn>(), Ok(Asn(1234)));
-        assert_eq!("as1234".parse::<Asn>(), Ok(Asn(1234)));
-        assert_eq!("As1234".parse::<Asn>(), Ok(Asn(1234)));
-        assert_eq!("aS1234".parse::<Asn>(), Ok(Asn(1234)));
-        assert_eq!("1234".parse::<Asn>(), Ok(Asn(1234)));
+        assert_eq!("0".parse::<Asn>(), Ok(Asn::from(0)));
+        assert_eq!("AS1234".parse::<Asn>(), Ok(Asn::from(1234)));
+        assert_eq!("as1234".parse::<Asn>(), Ok(Asn::from(1234)));
+        assert_eq!("As1234".parse::<Asn>(), Ok(Asn::from(1234)));
+        assert_eq!("aS1234".parse::<Asn>(), Ok(Asn::from(1234)));
+        assert_eq!("1234".parse::<Asn>(), Ok(Asn::from(1234)));
 
         assert_eq!("".parse::<Asn>(), Err(ParseAsnError));
         assert_eq!("-1234".parse::<Asn>(), Err(ParseAsnError));
@@ -748,5 +793,27 @@ mod tests {
         check_all_set_fns!([], []);
         check_all_set_fns!([1, 2, 3], []);
         check_all_set_fns!([], [1, 2, 3]);
+    }
+
+    #[test]
+    fn zero_copy() {
+        let bytes = [0, 0, 1, 9, 0, 0, 9, 10, 9, 1, 0, 0];
+        let asns = [
+            Asn::ref_from_bytes(&bytes[..4]),
+            Asn::ref_from_bytes(&bytes[4..8]),
+            Asn::ref_from_bytes(&bytes[8..12]),
+            Asn::ref_from_bytes(&bytes[12..]),
+        ];
+
+        // if this fails, then big endian an little endian got somehow mixed
+        // up
+        assert_ne!(*asns[0].as_ref().unwrap(), &Asn::from(151060480));
+        // idem
+        assert_ne!(*asns[2].as_ref().unwrap(), &Asn::from(265));
+
+        // the actual big endian values
+        assert_eq!(*asns[0].as_ref().unwrap(), &Asn::from(265));
+        assert_eq!(*asns[1].as_ref().unwrap(), &Asn::from(2314));
+        assert_eq!(*asns[2].as_ref().unwrap(), &Asn::from(151060480));
     }
 }
