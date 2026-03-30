@@ -3,8 +3,6 @@
 use libfuzzer_sys::fuzz_target;
 use std::str::FromStr;
 
-fuzz_target!(|data: &[u8]| {
-    if let Ok(s) = std::str::from_utf8(data) {
-        let _ = inetnum::asn::Asn16::from_str(s);
-    }
+fuzz_target!(|data: &str| {
+    let _ = inetnum::asn::Asn16::from_str(data);
 });
