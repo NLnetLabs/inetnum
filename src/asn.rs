@@ -359,7 +359,7 @@ impl FromStr for Asn16 {
 pub struct SmallAsnSet(Vec<Asn>);
 
 impl SmallAsnSet {
-    pub fn iter(&self) -> SmallSetIter {
+    pub fn iter(&self) -> SmallSetIter<'_> {
         self.0.iter().cloned()
     }
 
