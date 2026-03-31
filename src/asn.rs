@@ -81,13 +81,9 @@ impl FromStr for Asn {
     type Err = ParseAsnError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = if s.len() > 2 && s[..2].eq_ignore_ascii_case("as") {
-            &s[2..]
-        } else {
-            s
-        };
-
-        u32::from_str(s).map(Asn).map_err(|_| ParseAsnError)
+        u32::from_str(strip_as(s))
+            .map(Asn)
+            .map_err(|_| ParseAsnError)
     }
 }
 
@@ -321,11 +317,12 @@ impl From<u16> for Asn16 {
 }
 
 fn strip_as(s: &str) -> &str {
-    s.strip_prefix("AS")
-        .or_else(|| s.strip_prefix("as"))
-        .or_else(|| s.strip_prefix("As"))
-        .or_else(|| s.strip_prefix("aS"))
-        .unwrap_or(s)
+    if let Some((prefix, rest)) = s.split_at_checked(2) {
+        if prefix.eq_ignore_ascii_case("as") {
+            return rest;
+        }
+    };
+    s
 }
 
 impl FromStr for Asn16 {

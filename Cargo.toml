@@ -7,7 +7,7 @@ description = "Types for IP address prefixes and ASNs."
 documentation = "https://docs.rs/inetnum/"
 repository = "https://github.com/NLnetLabs/inetnum"
 edition = "2021"
-rust-version = "1.71"
+rust-version = "1.80"
 keywords = ["routing", "bgp", "rpki"]
 license = "BSD-3-Clause"
 
